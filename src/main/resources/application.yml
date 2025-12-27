@@ -1,0 +1,172 @@
+server:
+  port: ${SERVER_PORT:9000}
+
+spring:
+  application:
+    name: trading-gateway
+
+  cloud:
+    gateway:
+      # Global CORS configuration
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            exposedHeaders:
+              - Authorization
+            maxAge: 3600
+      
+      # Route configurations
+      routes:
+        # ============================================
+        # Authentication Service Routes (Public)
+        # ============================================
+        - id: auth-public-register
+          uri: ${auth.service.url:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/auth/register
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+        
+        - id: auth-public-login
+          uri: ${auth.service.url:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/auth/login
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+        
+        - id: auth-public-refresh
+          uri: ${auth.service.url:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/auth/refresh-token
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+        
+        # ============================================
+        # Authentication Service Routes (Protected)
+        # ============================================
+        - id: auth-protected-me
+          uri: ${auth.service.url:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/auth/me
+            - Method=GET
+          filters:
+            - AuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+        
+        - id: auth-protected-change-password
+          uri: ${auth.service.url:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/auth/change-password
+            - Method=POST
+          filters:
+            - AuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+        
+        - id: auth-protected-logout
+          uri: ${auth.service.url:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/auth/logout
+            - Method=POST
+          filters:
+            - AuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+        
+        # ============================================
+        # Protected Internal Services
+        # These services MUST be accessed through the gateway
+        # Direct access should be blocked by network policies
+        # ============================================
+        - id: price-prediction-service
+          uri: ${price.prediction.service.url:http://localhost:8082}
+          predicates:
+            - Path=/api/v1/predictions/**
+          filters:
+            - AuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: predictionServiceCircuitBreaker
+                fallbackUri: forward:/fallback/service
+        
+        - id: portfolio-backtest-service
+          uri: ${portfolio.backtest.service.url:http://localhost:8083}
+          predicates:
+            - Path=/api/v1/backtest/**
+          filters:
+            - AuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: backtestServiceCircuitBreaker
+                fallbackUri: forward:/fallback/service
+
+# Authentication service configuration
+auth:
+  service:
+    url: ${AUTH_SERVICE_URL:http://localhost:8081}
+
+# Other service URLs
+price:
+  prediction:
+    service:
+      url: ${PRICE_PREDICTION_SERVICE_URL:http://localhost:8082}
+
+portfolio:
+  backtest:
+    service:
+      url: ${PORTFOLIO_BACKTEST_SERVICE_URL:http://localhost:8083}
+
+# Gateway security configuration
+gateway:
+  security:
+    secret: ${GATEWAY_SECRET:change-this-in-production}
+
+# Logging configuration for security audit
+logging:
+  level:
+    root: ${LOGGING_LEVEL_ROOT:INFO}
+    com.hpt.trading_gateway: ${LOGGING_LEVEL_GATEWAY:DEBUG}
+    org.springframework.cloud.gateway: ${LOGGING_LEVEL_GATEWAY:DEBUG}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/gateway.log
+
+# Management endpoints for monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+

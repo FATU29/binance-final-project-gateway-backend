@@ -1,0 +1,127 @@
+# Kubernetes NetworkPolicy for Zero-Trust Security
+# This prevents direct access to internal services, forcing all traffic through the gateway
+
+---
+# Block all ingress traffic to auth service except from gateway
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: auth-service-policy
+  namespace: auth
+spec:
+  podSelector:
+    matchLabels:
+      app: auth-service
+  policyTypes:
+    - Ingress
+  ingress:
+    # Only allow traffic from API Gateway
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: gateway
+          podSelector:
+            matchLabels:
+              app: trading-gateway
+      ports:
+        - protocol: TCP
+          port: 8081
+
+---
+# Block all ingress traffic to price prediction service except from gateway
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: price-prediction-policy
+  namespace: services
+spec:
+  podSelector:
+    matchLabels:
+      app: price-prediction-service
+  policyTypes:
+    - Ingress
+  ingress:
+    # Only allow traffic from API Gateway
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: gateway
+          podSelector:
+            matchLabels:
+              app: trading-gateway
+      ports:
+        - protocol: TCP
+          port: 8082
+
+---
+# Block all ingress traffic to portfolio backtest service except from gateway
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: portfolio-backtest-policy
+  namespace: services
+spec:
+  podSelector:
+    matchLabels:
+      app: portfolio-backtest-service
+  policyTypes:
+    - Ingress
+  ingress:
+    # Only allow traffic from API Gateway
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: gateway
+          podSelector:
+            matchLabels:
+              app: trading-gateway
+      ports:
+        - protocol: TCP
+          port: 8083
+
+---
+# Block all ingress traffic to MongoDB except from auth service
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mongodb-policy
+  namespace: data
+spec:
+  podSelector:
+    matchLabels:
+      app: mongodb
+  policyTypes:
+    - Ingress
+  ingress:
+    # Only allow traffic from Auth Service
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: auth
+          podSelector:
+            matchLabels:
+              app: auth-service
+      ports:
+        - protocol: TCP
+          port: 27017
+
+---
+# Allow gateway to receive traffic from load balancer
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gateway-policy
+  namespace: gateway
+spec:
+  podSelector:
+    matchLabels:
+      app: trading-gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow from anywhere (load balancer)
+    - from: []
+      ports:
+        - protocol: TCP
+          port: 8080
+
