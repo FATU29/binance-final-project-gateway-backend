@@ -8,10 +8,15 @@ spring:
   cloud:
     gateway:
       # Global CORS configuration
+      # Supports wildcard (*) or specific origins via CORS_ALLOWED_ORIGINS
+      # Note: When using "*", credentials are automatically disabled
+      # For specific origins, use comma-separated list: "http://localhost:3000,http://frontend:3000"
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOrigins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+            # Spring Cloud Gateway supports both allowedOrigins and allowedOriginPatterns
+            # Using allowedOriginPatterns to support wildcard "*"
+            allowedOriginPatterns: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
             allowedMethods:
               - GET
               - POST
@@ -21,6 +26,8 @@ spring:
             allowedHeaders: "*"
             exposedHeaders:
               - Authorization
+            # Credentials only work with specific origins, not wildcard
+            allowCredentials: ${CORS_ALLOW_CREDENTIALS:true}
             maxAge: 3600
       
       # Route configurations
@@ -126,6 +133,59 @@ spring:
               args:
                 name: backtestServiceCircuitBreaker
                 fallbackUri: forward:/fallback/service
+        
+        # ============================================
+        # Crawl/News Service Routes
+        # ============================================
+        - id: news-service
+          uri: ${crawl.service.url:http://localhost:9002}
+          predicates:
+            - Path=/api/v1/news/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: newsServiceCircuitBreaker
+                fallbackUri: forward:/fallback/service
+        
+        - id: crawler-service
+          uri: ${crawl.service.url:http://localhost:9002}
+          predicates:
+            - Path=/api/v1/crawler/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: newsServiceCircuitBreaker
+                fallbackUri: forward:/fallback/service
+        
+        - id: cronjob-service
+          uri: ${crawl.service.url:http://localhost:9002}
+          predicates:
+            - Path=/api/v1/cronjob/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: newsServiceCircuitBreaker
+                fallbackUri: forward:/fallback/service
+        
+        - id: ai-analysis-service
+          uri: ${crawl.service.url:http://localhost:9002}
+          predicates:
+            - Path=/api/v1/ai/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: newsServiceCircuitBreaker
+                fallbackUri: forward:/fallback/service
+        
+        - id: analytics-service
+          uri: ${crawl.service.url:http://localhost:9002}
+          predicates:
+            - Path=/api/v1/analytics/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: newsServiceCircuitBreaker
+                fallbackUri: forward:/fallback/service
 
 # Authentication service configuration
 auth:
@@ -142,6 +202,10 @@ portfolio:
   backtest:
     service:
       url: ${PORTFOLIO_BACKTEST_SERVICE_URL:http://localhost:8083}
+
+crawl:
+  service:
+    url: ${CRAWL_SERVICE_URL:http://localhost:9002}
 
 # Gateway security configuration
 gateway:

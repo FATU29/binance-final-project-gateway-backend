@@ -1,5 +1,6 @@
 package com.hpt.trading_gateway.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
@@ -24,6 +25,9 @@ import java.util.List;
 @Configuration
 @EnableWebFluxSecurity
 public class SecurityConfig {
+
+    @Value("${CORS_ALLOWED_ORIGINS:http://localhost:3000}")
+    private String corsAllowedOrigins;
 
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
@@ -62,13 +66,30 @@ public class SecurityConfig {
 
     /**
      * CORS configuration to allow cross-origin requests
+     * Note: This should match the globalcors configuration in application.yml
+     * to avoid duplicate CORS headers
+     * 
+     * Supports both wildcard (*) and specific origins:
+     * - If CORS_ALLOWED_ORIGINS is "*", uses wildcard (credentials disabled)
+     * - Otherwise, uses specific origins (credentials enabled)
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // Allow specific origins in production, use environment variable
-        configuration.setAllowedOriginPatterns(List.of("*"));
+        // Check if wildcard is requested
+        if ("*".equals(corsAllowedOrigins.trim())) {
+            // Use wildcard pattern - credentials must be disabled
+            configuration.setAllowedOriginPatterns(List.of("*"));
+            configuration.setAllowCredentials(false);
+        } else {
+            // Use specific origins from environment variable
+            // Split comma-separated origins if multiple are provided
+            List<String> allowedOrigins = Arrays.asList(corsAllowedOrigins.split(","));
+            configuration.setAllowedOrigins(allowedOrigins);
+            // Allow credentials when using specific origins
+            configuration.setAllowCredentials(true);
+        }
         
         // Allow common HTTP methods
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
@@ -88,9 +109,6 @@ public class SecurityConfig {
             "X-User-Id",
             "X-User-Email"
         ));
-        
-        // Allow credentials (cookies, authorization headers)
-        configuration.setAllowCredentials(true);
         
         // Cache preflight response for 1 hour
         configuration.setMaxAge(3600L);
