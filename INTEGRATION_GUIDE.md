@@ -20,16 +20,30 @@ This guide helps frontend developers integrate with the Trading Gateway API.
 | **Access Token Expiration** | 1 hour (3600000ms) |
 | **Refresh Token Expiration** | 24 hours (86400000ms) |
 
+## 👤 Account Types
+
+| Type | Description | Permissions |
+|------|-------------|-------------|
+| **STANDARD** | Default account type for new users | Can view charts |
+| **VIP** | Premium account type | Can view charts + AI model-based analyses (`/api/v1/ai/**`) |
+
 ## 📋 API Endpoints Quick Reference
 
-| Action | Method | Endpoint | Auth Required |
-|--------|--------|----------|---------------|
-| Register | POST | `/api/v1/auth/register` | ❌ No |
-| Login | POST | `/api/v1/auth/login` | ❌ No |
-| Refresh Token | POST | `/api/v1/auth/refresh-token` | ❌ No |
-| Get Profile | GET | `/api/v1/auth/me` | ✅ Yes |
-| Change Password | POST | `/api/v1/auth/change-password` | ✅ Yes |
-| Logout | POST | `/api/v1/auth/logout` | ✅ Yes |
+### Authentication Endpoints
+| Action | Method | Endpoint | Auth Required | Account Type |
+|--------|--------|----------|---------------|--------------|
+| Register | POST | `/api/v1/auth/register` | ❌ No | - |
+| Login | POST | `/api/v1/auth/login` | ❌ No | - |
+| Refresh Token | POST | `/api/v1/auth/refresh-token` | ❌ No | - |
+| Get Profile | GET | `/api/v1/auth/me` | ✅ Yes | Any |
+| Change Password | POST | `/api/v1/auth/change-password` | ✅ Yes | Any |
+| Logout | POST | `/api/v1/auth/logout` | ✅ Yes | Any |
+| Upgrade Account | PUT | `/api/v1/auth/upgrade-account` | ✅ Yes | Any |
+
+### AI Analysis Endpoints (VIP Only)
+| Action | Method | Endpoint | Auth Required | Account Type |
+|--------|--------|----------|---------------|--------------|
+| AI Analysis | GET/POST | `/api/v1/ai/**` | ✅ Yes | 🌟 VIP Only |
 
 ---
 
@@ -62,7 +76,8 @@ This guide helps frontend developers integrate with the Trading Gateway API.
       "id": "507f1f77bcf86cd799439011",
       "email": "user@example.com",
       "firstName": "John",
-      "lastName": "Doe"
+      "lastName": "Doe",
+      "accountType": "STANDARD"
     }
   },
   "timestamp": "2025-12-27T10:00:00.000Z"
@@ -106,7 +121,8 @@ curl -X POST http://localhost:9000/api/v1/auth/register \
       "id": "507f1f77bcf86cd799439011",
       "email": "user@example.com",
       "firstName": "John",
-      "lastName": "Doe"
+      "lastName": "Doe",
+      "accountType": "STANDARD"
     }
   },
   "timestamp": "2025-12-27T10:00:00.000Z"
@@ -175,6 +191,7 @@ Authorization: Bearer eyJhbGciOiJIUzUxMiJ9...
     "firstName": "John",
     "lastName": "Doe",
     "enabled": true,
+    "accountType": "STANDARD",
     "createdAt": "2025-12-27T10:00:00.000Z",
     "updatedAt": "2025-12-27T10:00:00.000Z"
   },
@@ -234,6 +251,80 @@ Authorization: Bearer eyJhbGciOiJIUzUxMiJ9...
 
 > **Note:** After logout, the access token is blacklisted and cannot be used again.
 
+### 7. Upgrade Account
+**PUT** `http://localhost:9000/api/v1/auth/upgrade-account`
+
+**Headers:**
+```
+Authorization: Bearer eyJhbGciOiJIUzUxMiJ9...
+Content-Type: application/json
+```
+
+**Request:**
+```json
+{
+  "accountType": "VIP"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Account upgraded successfully",
+  "data": {
+    "id": "507f1f77bcf86cd799439011",
+    "email": "user@example.com",
+    "firstName": "John",
+    "lastName": "Doe",
+    "enabled": true,
+    "accountType": "VIP",
+    "createdAt": "2025-12-27T10:00:00.000Z",
+    "updatedAt": "2025-12-27T10:00:00.000Z"
+  },
+  "timestamp": "2025-12-27T10:00:00.000Z"
+}
+```
+
+**cURL Example:**
+```bash
+curl -X PUT http://localhost:9000/api/v1/auth/upgrade-account \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"accountType": "VIP"}'
+```
+
+> **Note:** Account types are `STANDARD` (default) and `VIP`. VIP accounts can access AI model-based analyses.
+
+---
+
+## 🌟 VIP-Only Endpoints (AI Analysis)
+
+> **⚠️ Important:** These endpoints require a **VIP account**. Standard accounts will receive a `403 Forbidden` error.
+
+### AI Analysis Endpoints
+**Base Path:** `http://localhost:9000/api/v1/ai/**`
+
+**Headers Required:**
+```
+Authorization: Bearer eyJhbGciOiJIUzUxMiJ9...
+```
+
+**Access Denied Response (403 Forbidden) - For Standard Accounts:**
+```json
+{
+  "error": "Access denied. VIP account required to access AI model-based analyses."
+}
+```
+
+**cURL Example:**
+```bash
+curl -X GET http://localhost:9000/api/v1/ai/analysis \
+  -H "Authorization: Bearer YOUR_VIP_ACCESS_TOKEN"
+```
+
+> **Tip:** To access AI analysis endpoints, first upgrade your account to VIP using the `/api/v1/auth/upgrade-account` endpoint.
+
 ---
 
 ## ❌ Error Responses
@@ -243,7 +334,7 @@ Authorization: Bearer eyJhbGciOiJIUzUxMiJ9...
 |--------|-------------|
 | 400 | Bad Request - Validation errors, email already exists |
 | 401 | Unauthorized - Invalid credentials, expired/invalid token |
-| 403 | Forbidden - Blacklisted token (after logout) |
+| 403 | Forbidden - Blacklisted token (after logout) OR VIP access required |
 | 404 | Not Found - User not found |
 | 503 | Service Unavailable - Auth service is down |
 
@@ -264,6 +355,8 @@ Authorization: Bearer eyJhbGciOiJIUzUxMiJ9...
 | `Missing or invalid Authorization header` | No Bearer token | Add Authorization header |
 | `Invalid or expired token` | Token expired or invalid | Refresh token or re-login |
 | `Authentication service is temporarily unavailable` | Auth service down | Retry later |
+| `Access denied. VIP account required...` | Standard account accessing VIP endpoint | Upgrade to VIP account |
+| `Account is already VIP` | Trying to upgrade an already VIP account | No action needed |
 
 ---
 
@@ -333,6 +426,15 @@ export const authApi = {
     api.post('/api/v1/auth/change-password', data),
 
   logout: () => api.post('/api/v1/auth/logout'),
+
+  upgradeAccount: (accountType: 'STANDARD' | 'VIP') =>
+    api.put('/api/v1/auth/upgrade-account', { accountType }),
+};
+
+// AI Analysis API (VIP only)
+export const aiApi = {
+  getAnalysis: () => api.get('/api/v1/ai/analysis'),
+  // Add more AI endpoints as needed
 };
 ```
 
@@ -342,18 +444,23 @@ export const authApi = {
 import { useState, useEffect, createContext, useContext } from 'react';
 import { authApi } from './api';
 
+type AccountType = 'STANDARD' | 'VIP';
+
 interface User {
   id: string;
   email: string;
   firstName: string;
   lastName: string;
+  accountType: AccountType;
 }
 
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  upgradeToVip: () => Promise<void>;
   isAuthenticated: boolean;
+  isVip: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -383,14 +490,60 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const upgradeToVip = async () => {
+    const { data } = await authApi.upgradeAccount('VIP');
+    setUser(data.data);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{
+      user,
+      login,
+      logout,
+      upgradeToVip,
+      isAuthenticated: !!user,
+      isVip: user?.accountType === 'VIP'
+    }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
 export const useAuth = () => useContext(AuthContext);
+```
+
+### VIP Feature Guard Component
+
+```typescript
+import { useAuth } from './AuthContext';
+
+interface VipGuardProps {
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}
+
+export const VipGuard: React.FC<VipGuardProps> = ({ children, fallback }) => {
+  const { isVip } = useAuth();
+
+  if (!isVip) {
+    return fallback || (
+      <div className="vip-required">
+        <h3>🌟 VIP Access Required</h3>
+        <p>Upgrade your account to access AI model-based analyses.</p>
+        <button onClick={() => window.location.href = '/upgrade'}>
+          Upgrade to VIP
+        </button>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+};
+
+// Usage example:
+// <VipGuard>
+//   <AIAnalysisComponent />
+// </VipGuard>
 ```
 
 ---

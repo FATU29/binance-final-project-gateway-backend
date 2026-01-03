@@ -45,7 +45,12 @@ spring:
               args:
                 name: authServiceCircuitBreaker
                 fallbackUri: forward:/fallback/auth
-        
+                statusCodes:
+                  - 500
+                  - 502
+                  - 503
+                  - 504
+
         - id: auth-public-login
           uri: ${auth.service.url:http://localhost:8081}
           predicates:
@@ -56,7 +61,12 @@ spring:
               args:
                 name: authServiceCircuitBreaker
                 fallbackUri: forward:/fallback/auth
-        
+                statusCodes:
+                  - 500
+                  - 502
+                  - 503
+                  - 504
+
         - id: auth-public-refresh
           uri: ${auth.service.url:http://localhost:8081}
           predicates:
@@ -67,6 +77,11 @@ spring:
               args:
                 name: authServiceCircuitBreaker
                 fallbackUri: forward:/fallback/auth
+                statusCodes:
+                  - 500
+                  - 502
+                  - 503
+                  - 504
         
         # ============================================
         # Authentication Service Routes (Protected)
@@ -82,7 +97,12 @@ spring:
               args:
                 name: authServiceCircuitBreaker
                 fallbackUri: forward:/fallback/auth
-        
+                statusCodes:
+                  - 500
+                  - 502
+                  - 503
+                  - 504
+
         - id: auth-protected-change-password
           uri: ${auth.service.url:http://localhost:8081}
           predicates:
@@ -94,7 +114,12 @@ spring:
               args:
                 name: authServiceCircuitBreaker
                 fallbackUri: forward:/fallback/auth
-        
+                statusCodes:
+                  - 500
+                  - 502
+                  - 503
+                  - 504
+
         - id: auth-protected-logout
           uri: ${auth.service.url:http://localhost:8081}
           predicates:
@@ -106,7 +131,29 @@ spring:
               args:
                 name: authServiceCircuitBreaker
                 fallbackUri: forward:/fallback/auth
-        
+                statusCodes:
+                  - 500
+                  - 502
+                  - 503
+                  - 504
+
+        - id: auth-protected-upgrade-account
+          uri: ${auth.service.url:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/auth/upgrade-account
+            - Method=PUT
+          filters:
+            - AuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+                statusCodes:
+                  - 500
+                  - 502
+                  - 503
+                  - 504
+
         # ============================================
         # Protected Internal Services
         # These services MUST be accessed through the gateway
@@ -122,7 +169,12 @@ spring:
               args:
                 name: predictionServiceCircuitBreaker
                 fallbackUri: forward:/fallback/service
-        
+                statusCodes:
+                  - 500
+                  - 502
+                  - 503
+                  - 504
+
         - id: portfolio-backtest-service
           uri: ${portfolio.backtest.service.url:http://localhost:8083}
           predicates:
@@ -133,7 +185,12 @@ spring:
               args:
                 name: backtestServiceCircuitBreaker
                 fallbackUri: forward:/fallback/service
-        
+                statusCodes:
+                  - 500
+                  - 502
+                  - 503
+                  - 504
+
         # ============================================
         # Crawl/News Service Routes
         # ============================================
@@ -146,7 +203,12 @@ spring:
               args:
                 name: newsServiceCircuitBreaker
                 fallbackUri: forward:/fallback/service
-        
+                statusCodes:
+                  - 500
+                  - 502
+                  - 503
+                  - 504
+
         - id: crawler-service
           uri: ${crawl.service.url:http://localhost:9002}
           predicates:
@@ -156,7 +218,12 @@ spring:
               args:
                 name: newsServiceCircuitBreaker
                 fallbackUri: forward:/fallback/service
-        
+                statusCodes:
+                  - 500
+                  - 502
+                  - 503
+                  - 504
+
         - id: cronjob-service
           uri: ${crawl.service.url:http://localhost:9002}
           predicates:
@@ -166,17 +233,29 @@ spring:
               args:
                 name: newsServiceCircuitBreaker
                 fallbackUri: forward:/fallback/service
-        
+                statusCodes:
+                  - 500
+                  - 502
+                  - 503
+                  - 504
+
         - id: ai-analysis-service
           uri: ${crawl.service.url:http://localhost:9002}
           predicates:
             - Path=/api/v1/ai/**
           filters:
+            - AuthenticationFilter
+            - VipAuthorizationFilter
             - name: CircuitBreaker
               args:
                 name: newsServiceCircuitBreaker
                 fallbackUri: forward:/fallback/service
-        
+                statusCodes:
+                  - 500
+                  - 502
+                  - 503
+                  - 504
+
         - id: analytics-service
           uri: ${crawl.service.url:http://localhost:9002}
           predicates:
@@ -186,6 +265,11 @@ spring:
               args:
                 name: newsServiceCircuitBreaker
                 fallbackUri: forward:/fallback/service
+                statusCodes:
+                  - 500
+                  - 502
+                  - 503
+                  - 504
 
 # Authentication service configuration
 auth:
@@ -211,6 +295,41 @@ crawl:
 gateway:
   security:
     secret: ${GATEWAY_SECRET:change-this-in-production}
+
+# Resilience4j Circuit Breaker configuration
+# Configure to pass through client errors (4xx) instead of triggering fallback
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 5s
+        failureRateThreshold: 50
+        eventConsumerBufferSize: 10
+        # Only record server errors (5xx) as failures, not client errors (4xx)
+        recordExceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.reactive.function.client.WebClientResponseException$ServiceUnavailable
+          - org.springframework.web.reactive.function.client.WebClientResponseException$GatewayTimeout
+          - org.springframework.web.reactive.function.client.WebClientResponseException$InternalServerError
+        ignoreExceptions:
+          - org.springframework.web.reactive.function.client.WebClientResponseException$BadRequest
+          - org.springframework.web.reactive.function.client.WebClientResponseException$Unauthorized
+          - org.springframework.web.reactive.function.client.WebClientResponseException$Forbidden
+          - org.springframework.web.reactive.function.client.WebClientResponseException$NotFound
+    instances:
+      authServiceCircuitBreaker:
+        baseConfig: default
+      predictionServiceCircuitBreaker:
+        baseConfig: default
+      backtestServiceCircuitBreaker:
+        baseConfig: default
+      newsServiceCircuitBreaker:
+        baseConfig: default
 
 # Logging configuration for security audit
 logging:

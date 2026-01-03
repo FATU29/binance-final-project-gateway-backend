@@ -77,12 +77,13 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
                         .header("X-User-Email", userData.getEmail())
                         .header("X-User-FirstName", userData.getFirstName())
                         .header("X-User-LastName", userData.getLastName())
+                        .header("X-User-AccountType", userData.getAccountType() != null ? userData.getAccountType() : "STANDARD")
                         .header("X-Gateway-Validated", "true") // Proof that request went through gateway
                         .build();
-                    
-                    log.info("Authentication successful for user: {} ({})", 
-                        userData.getEmail(), userData.getId());
-                    
+
+                    log.info("Authentication successful for user: {} ({}) with account type: {}",
+                        userData.getEmail(), userData.getId(), userData.getAccountType());
+
                     return chain.filter(exchange.mutate().request(modifiedRequest).build());
                 })
                 .onErrorResume(error -> {

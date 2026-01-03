@@ -24,6 +24,11 @@
 			"key": "user_id",
 			"value": "",
 			"type": "string"
+		},
+		{
+			"key": "account_type",
+			"value": "STANDARD",
+			"type": "string"
 		}
 	],
 	"item": [
@@ -80,11 +85,17 @@
 								"exec": [
 									"if (pm.response.code === 200 || pm.response.code === 201) {",
 									"    var jsonData = pm.response.json();",
-									"    if (jsonData.accessToken) {",
-									"        pm.collectionVariables.set('access_token', jsonData.accessToken);",
+									"    if (jsonData.data && jsonData.data.accessToken) {",
+									"        pm.collectionVariables.set('access_token', jsonData.data.accessToken);",
 									"    }",
-									"    if (jsonData.refreshToken) {",
-									"        pm.collectionVariables.set('refresh_token', jsonData.refreshToken);",
+									"    if (jsonData.data && jsonData.data.refreshToken) {",
+									"        pm.collectionVariables.set('refresh_token', jsonData.data.refreshToken);",
+									"    }",
+									"    if (jsonData.data && jsonData.data.user && jsonData.data.user.id) {",
+									"        pm.collectionVariables.set('user_id', jsonData.data.user.id);",
+									"    }",
+									"    if (jsonData.data && jsonData.data.user && jsonData.data.user.accountType) {",
+									"        pm.collectionVariables.set('account_type', jsonData.data.user.accountType);",
 									"    }",
 									"}"
 								]
@@ -119,14 +130,17 @@
 								"exec": [
 									"if (pm.response.code === 200) {",
 									"    var jsonData = pm.response.json();",
-									"    if (jsonData.accessToken) {",
-									"        pm.collectionVariables.set('access_token', jsonData.accessToken);",
+									"    if (jsonData.data && jsonData.data.accessToken) {",
+									"        pm.collectionVariables.set('access_token', jsonData.data.accessToken);",
 									"    }",
-									"    if (jsonData.refreshToken) {",
-									"        pm.collectionVariables.set('refresh_token', jsonData.refreshToken);",
+									"    if (jsonData.data && jsonData.data.refreshToken) {",
+									"        pm.collectionVariables.set('refresh_token', jsonData.data.refreshToken);",
 									"    }",
-									"    if (jsonData.user && jsonData.user.id) {",
-									"        pm.collectionVariables.set('user_id', jsonData.user.id);",
+									"    if (jsonData.data && jsonData.data.user && jsonData.data.user.id) {",
+									"        pm.collectionVariables.set('user_id', jsonData.data.user.id);",
+									"    }",
+									"    if (jsonData.data && jsonData.data.user && jsonData.data.user.accountType) {",
+									"        pm.collectionVariables.set('account_type', jsonData.data.user.accountType);",
 									"    }",
 									"}"
 								]
@@ -161,11 +175,11 @@
 								"exec": [
 									"if (pm.response.code === 200) {",
 									"    var jsonData = pm.response.json();",
-									"    if (jsonData.accessToken) {",
-									"        pm.collectionVariables.set('access_token', jsonData.accessToken);",
+									"    if (jsonData.data && jsonData.data.accessToken) {",
+									"        pm.collectionVariables.set('access_token', jsonData.data.accessToken);",
 									"    }",
-									"    if (jsonData.refreshToken) {",
-									"        pm.collectionVariables.set('refresh_token', jsonData.refreshToken);",
+									"    if (jsonData.data && jsonData.data.refreshToken) {",
+									"        pm.collectionVariables.set('refresh_token', jsonData.data.refreshToken);",
 									"    }",
 									"}"
 								]
@@ -257,6 +271,161 @@
 							"path": ["api", "v1", "auth", "logout"]
 						}
 					}
+				},
+				{
+					"name": "Upgrade Account to VIP",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.accountType) {",
+									"        pm.collectionVariables.set('account_type', jsonData.data.accountType);",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"accountType\": \"VIP\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/upgrade-account",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "upgrade-account"]
+						}
+					},
+					"description": "Upgrade account from STANDARD to VIP. VIP accounts can access AI model-based analyses."
+				},
+				{
+					"name": "Downgrade Account to STANDARD",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.accountType) {",
+									"        pm.collectionVariables.set('account_type', jsonData.data.accountType);",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"accountType\": \"STANDARD\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/upgrade-account",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "upgrade-account"]
+						}
+					},
+					"description": "Downgrade account from VIP to STANDARD."
+				}
+			]
+		},
+		{
+			"name": "AI Analysis (VIP Only)",
+			"description": "These endpoints require a VIP account. Standard accounts will receive a 403 Forbidden error.",
+			"item": [
+				{
+					"name": "Get AI Analysis",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/ai/analysis",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "ai", "analysis"]
+						}
+					},
+					"description": "Get AI model-based analysis. Requires VIP account."
+				},
+				{
+					"name": "Get AI Analysis by Symbol",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/ai/analysis/BTCUSDT",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "ai", "analysis", "BTCUSDT"]
+						}
+					},
+					"description": "Get AI analysis for a specific symbol. Requires VIP account."
+				},
+				{
+					"name": "Create AI Analysis Request",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"symbol\": \"BTCUSDT\",\n  \"analysisType\": \"sentiment\",\n  \"timeframe\": \"1d\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/ai/analysis",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "ai", "analysis"]
+						}
+					},
+					"description": "Request a new AI analysis. Requires VIP account."
 				}
 			]
 		},
@@ -438,6 +607,52 @@
 							"path": ["fallback", "auth"]
 						}
 					}
+				},
+				{
+					"name": "Forbidden - VIP Required (Standard Account)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/ai/analysis",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "ai", "analysis"]
+						}
+					},
+					"description": "This request will return 403 Forbidden if the user has a STANDARD account. VIP account is required to access AI analysis endpoints."
+				},
+				{
+					"name": "Bad Request - Already VIP",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"accountType\": \"VIP\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/upgrade-account",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "upgrade-account"]
+						}
+					},
+					"description": "This request will return 400 Bad Request if the user already has a VIP account."
 				}
 			]
 		}

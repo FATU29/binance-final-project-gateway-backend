@@ -13,19 +13,21 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserData {
-    
+
     private String id;
-    
+
     private String email;
-    
+
     private String firstName;
-    
+
     private String lastName;
-    
+
     private boolean enabled;
-    
+
+    private String accountType;
+
     private Instant createdAt;
-    
+
     private Instant updatedAt;
 }
 
