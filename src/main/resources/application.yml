@@ -7,13 +7,22 @@ spring:
 
   cloud:
     gateway:
+      # HTTP client timeout configuration
+      # Increase timeouts for long-running operations like crawling
+      httpclient:
+        connect-timeout: 5000 # 5 seconds for connection
+        response-timeout: 60s # 60 seconds for response (crawler needs time)
+        pool:
+          type: elastic
+          max-idle-time: 60s
+
       # Global CORS configuration
       # Supports wildcard (*) or specific origins via CORS_ALLOWED_ORIGINS
       # Note: When using "*", credentials are automatically disabled
       # For specific origins, use comma-separated list: "http://localhost:3000,http://frontend:3000"
       globalcors:
         cors-configurations:
-          '[/**]':
+          "[/**]":
             # Spring Cloud Gateway supports both allowedOrigins and allowedOriginPatterns
             # Using allowedOriginPatterns to support wildcard "*"
             allowedOriginPatterns: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
@@ -29,7 +38,7 @@ spring:
             # Credentials only work with specific origins, not wildcard
             allowCredentials: ${CORS_ALLOW_CREDENTIALS:true}
             maxAge: 3600
-      
+
       # Route configurations
       routes:
         # ============================================
@@ -82,7 +91,7 @@ spring:
                   - 502
                   - 503
                   - 504
-        
+
         # ============================================
         # Authentication Service Routes (Protected)
         # ============================================
@@ -193,6 +202,7 @@ spring:
 
         # ============================================
         # Crawl/News Service Routes
+        # Note: Increased timeout for crawling operations (60s)
         # ============================================
         - id: news-service
           uri: ${crawl.service.url:http://localhost:9002}
@@ -261,6 +271,8 @@ spring:
           predicates:
             - Path=/api/v1/analytics/**
           filters:
+            - AuthenticationFilter
+            - VipAuthorizationFilter
             - name: CircuitBreaker
               args:
                 name: newsServiceCircuitBreaker
@@ -306,9 +318,11 @@ resilience4j:
         minimumNumberOfCalls: 5
         permittedNumberOfCallsInHalfOpenState: 3
         automaticTransitionFromOpenToHalfOpenEnabled: true
-        waitDurationInOpenState: 5s
+        waitDurationInOpenState: 10s # Increased from 5s to 10s
         failureRateThreshold: 50
         eventConsumerBufferSize: 10
+        slowCallDurationThreshold: 45s # Consider calls slower than 45s as slow
+        slowCallRateThreshold: 80 # Open circuit if 80% of calls are slow
         # Only record server errors (5xx) as failures, not client errors (4xx)
         recordExceptions:
           - java.io.IOException
@@ -330,6 +344,9 @@ resilience4j:
         baseConfig: default
       newsServiceCircuitBreaker:
         baseConfig: default
+        slidingWindowSize: 20 # More samples before opening circuit
+        minimumNumberOfCalls: 10 # Need more calls before evaluating
+        failureRateThreshold: 70 # Higher threshold for news service (crawling can be flaky)
 
 # Logging configuration for security audit
 logging:
@@ -352,4 +369,3 @@ management:
   endpoint:
     health:
       show-details: always
-
