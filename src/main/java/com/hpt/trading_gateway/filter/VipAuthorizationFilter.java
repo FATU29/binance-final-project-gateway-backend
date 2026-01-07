@@ -38,24 +38,34 @@ public class VipAuthorizationFilter extends AbstractGatewayFilterFactory<VipAuth
     @Override
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
+            // Get the current request from exchange (may have been mutated by previous filters)
             ServerHttpRequest request = exchange.getRequest();
-            
+
             // Get account type from header (set by AuthenticationFilter)
+            // The header is set on the mutated request by AuthenticationFilter
             String accountType = request.getHeaders().getFirst(ACCOUNT_TYPE_HEADER);
-            
-            log.debug("VIP authorization check for: {} {} - Account type: {}", 
+
+            log.debug("VIP authorization check for: {} {} - Account type from header: {}",
                 request.getMethod(), request.getURI(), accountType);
-            
+
+            // Log all X-User headers for debugging
+            request.getHeaders().forEach((name, values) -> {
+                if (name.startsWith("X-User")) {
+                    log.debug("Header {}: {}", name, values);
+                }
+            });
+
             // Check if user has VIP account
             if (accountType == null || !VIP_ACCOUNT_TYPE.equalsIgnoreCase(accountType)) {
-                log.warn("VIP access denied for user with account type: {} - Path: {}", 
+                log.warn("VIP access denied for user with account type: {} - Path: {}",
                     accountType, request.getURI());
-                return onError(exchange, 
-                    "Access denied. VIP account required to access AI model-based analyses.", 
+                return onError(exchange,
+                    "Access denied. VIP account required to access AI model-based analyses.",
                     HttpStatus.FORBIDDEN);
             }
-            
-            log.info("VIP access granted for path: {}", request.getURI());
+
+            log.info("VIP access granted for user with account type: {} - Path: {}",
+                accountType, request.getURI());
             return chain.filter(exchange);
         };
     }

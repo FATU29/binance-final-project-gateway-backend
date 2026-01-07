@@ -24,8 +24,15 @@ This guide helps frontend developers integrate with the Trading Gateway API.
 
 | Type | Description | Permissions |
 |------|-------------|-------------|
-| **STANDARD** | Default account type for new users | Can view charts |
-| **VIP** | Premium account type | Can view charts + AI model-based analyses (`/api/v1/ai/**`) |
+| **STANDARD** | Default account type for new users | Can view charts, news, predictions, backtest |
+| **VIP** | Premium account type | All STANDARD features + AI model-based analyses (`/api/v1/ai/**`, `/api/v1/analytics/**`) |
+
+### VIP-Only Features
+The following endpoints are **restricted to VIP accounts only**:
+- `/api/v1/ai/**` - AI Analysis endpoints (sentiment analysis, causal analysis, AI-analyzed news)
+- `/api/v1/analytics/**` - Advanced analytics endpoints
+
+**Standard users attempting to access VIP endpoints will receive a `403 Forbidden` error.**
 
 ## 📋 API Endpoints Quick Reference
 
@@ -44,6 +51,14 @@ This guide helps frontend developers integrate with the Trading Gateway API.
 | Action | Method | Endpoint | Auth Required | Account Type |
 |--------|--------|----------|---------------|--------------|
 | AI Analysis | GET/POST | `/api/v1/ai/**` | ✅ Yes | 🌟 VIP Only |
+| Analytics | GET/POST | `/api/v1/analytics/**` | ✅ Yes | 🌟 VIP Only |
+
+### Other Protected Endpoints
+| Action | Method | Endpoint | Auth Required | Account Type |
+|--------|--------|----------|---------------|--------------|
+| Predictions | GET/POST | `/api/v1/predictions/**` | ✅ Yes | Any |
+| Backtest | GET/POST | `/api/v1/backtest/**` | ✅ Yes | Any |
+| News | GET | `/api/v1/news/**` | ❌ No | Any |
 
 ---
 
@@ -298,32 +313,116 @@ curl -X PUT http://localhost:9000/api/v1/auth/upgrade-account \
 
 ---
 
-## 🌟 VIP-Only Endpoints (AI Analysis)
+## 🌟 VIP-Only Endpoints (AI Analysis & Analytics)
 
 > **⚠️ Important:** These endpoints require a **VIP account**. Standard accounts will receive a `403 Forbidden` error.
+
+### VIP Protected Endpoints
+
+| Endpoint Pattern | Description |
+|------------------|-------------|
+| `/api/v1/ai/**` | AI Analysis endpoints |
+| `/api/v1/analytics/**` | Advanced Analytics endpoints |
 
 ### AI Analysis Endpoints
 **Base Path:** `http://localhost:9000/api/v1/ai/**`
 
-**Headers Required:**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/ai/sentiment/{id}` | GET | Get sentiment analysis for a news item |
+| `/api/v1/ai/analyzed-news` | GET | Get AI-analyzed news list |
+| `/api/v1/ai/causal-analysis` | GET | Get causal analysis data |
+
+### Analytics Endpoints
+**Base Path:** `http://localhost:9000/api/v1/analytics/**`
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/analytics/trends` | GET | Get trend analysis |
+| `/api/v1/analytics/predictions` | GET | Get AI predictions |
+
+### Headers Required
 ```
 Authorization: Bearer eyJhbGciOiJIUzUxMiJ9...
 ```
 
-**Access Denied Response (403 Forbidden) - For Standard Accounts:**
+### Access Denied Response (403 Forbidden) - For Standard Accounts
 ```json
 {
-  "error": "Access denied. VIP account required to access AI model-based analyses."
+  "success": false,
+  "message": "Access denied. VIP account required to access AI model-based analyses.",
+  "timestamp": "2026-01-03T10:00:00.000Z"
 }
 ```
 
-**cURL Example:**
+### Successful Response Example (VIP Account)
 ```bash
-curl -X GET http://localhost:9000/api/v1/ai/analysis \
+curl -X GET http://localhost:9000/api/v1/ai/analyzed-news \
   -H "Authorization: Bearer YOUR_VIP_ACCESS_TOKEN"
 ```
 
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "123",
+      "title": "Bitcoin reaches new high",
+      "sentiment": "positive",
+      "score": 0.85,
+      "analyzedAt": "2026-01-03T10:00:00.000Z"
+    }
+  ],
+  "timestamp": "2026-01-03T10:00:00.000Z"
+}
+```
+
 > **Tip:** To access AI analysis endpoints, first upgrade your account to VIP using the `/api/v1/auth/upgrade-account` endpoint.
+
+---
+
+## 🔄 VIP Access Flow
+
+```
+1. User registers/logs in → Gets STANDARD account
+2. User calls /api/v1/ai/** → Gets 403 Forbidden
+3. User upgrades account → PUT /api/v1/auth/upgrade-account {"accountType": "VIP"}
+4. User calls /api/v1/ai/** → Gets 200 OK with data
+```
+
+### How VIP Protection Works
+
+The gateway implements a **3-layer security model**:
+
+1. **AuthenticationFilter** - Validates JWT token by calling auth service `/me` endpoint
+2. **VipAuthorizationFilter** - Checks if user's `accountType` is "VIP"
+3. **CircuitBreaker** - Provides fallback when downstream services are unavailable
+
+```
+Request Flow:
+┌─────────────────┐
+│   Frontend      │
+│  (with token)   │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│    Gateway      │
+│   (Port 9000)   │
+├─────────────────┤
+│ 1. AuthFilter   │ ──► Validates token with Auth Service
+│    ↓            │     Sets X-User-AccountType header
+│ 2. VipFilter    │ ──► Checks accountType == "VIP"
+│    ↓            │     Returns 403 if not VIP
+│ 3. CircuitBreaker│ ──► Handles service failures
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  AI Service     │
+│  (Port 9002)    │
+└─────────────────┘
+```
 
 ---
 
@@ -332,18 +431,18 @@ curl -X GET http://localhost:9000/api/v1/ai/analysis \
 ### HTTP Status Codes
 | Status | Description |
 |--------|-------------|
-| 400 | Bad Request - Validation errors, email already exists |
-| 401 | Unauthorized - Invalid credentials, expired/invalid token |
-| 403 | Forbidden - Blacklisted token (after logout) OR VIP access required |
+| 400 | Bad Request - Validation errors, email already exists, account already VIP |
+| 401 | Unauthorized - Invalid credentials, expired/invalid token, missing Authorization header |
+| 403 | Forbidden - Blacklisted token (after logout) OR VIP access required for AI endpoints |
 | 404 | Not Found - User not found |
-| 503 | Service Unavailable - Auth service is down |
+| 503 | Service Unavailable - Backend service is down (only for server errors 500-504) |
 
 ### Error Response Format
 ```json
 {
   "success": false,
   "message": "Error description here",
-  "timestamp": "2025-12-27T10:00:00.000Z"
+  "timestamp": "2026-01-03T10:00:00.000Z"
 }
 ```
 
