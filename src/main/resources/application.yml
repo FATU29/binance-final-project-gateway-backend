@@ -249,6 +249,44 @@ spring:
                   - 503
                   - 504
 
+        # ============================================
+        # AI Service Routes (VIP Only)
+        # Protected by both AuthenticationFilter and VipAuthorizationFilter
+        # ============================================
+        - id: ai-causal-analysis
+          uri: ${ai.service.url:http://localhost:8000}
+          predicates:
+            - Path=/api/v1/causal/**
+          filters:
+            - AuthenticationFilter
+            - VipAuthorizationFilter
+            - name: CircuitBreaker
+              args:
+                name: aiServiceCircuitBreaker
+                fallbackUri: forward:/fallback/service
+                statusCodes:
+                  - 500
+                  - 502
+                  - 503
+                  - 504
+
+        - id: ai-sentiment-service
+          uri: ${ai.service.url:http://localhost:8000}
+          predicates:
+            - Path=/api/v1/sentiment/**
+          filters:
+            - AuthenticationFilter
+            - VipAuthorizationFilter
+            - name: CircuitBreaker
+              args:
+                name: aiServiceCircuitBreaker
+                fallbackUri: forward:/fallback/service
+                statusCodes:
+                  - 500
+                  - 502
+                  - 503
+                  - 504
+
         - id: ai-analysis-service
           uri: ${crawl.service.url:http://localhost:9002}
           predicates:
@@ -287,6 +325,11 @@ spring:
 auth:
   service:
     url: ${AUTH_SERVICE_URL:http://localhost:8081}
+
+# AI Service configuration
+ai:
+  service:
+    url: ${AI_SERVICE_URL:http://localhost:8000}
 
 # Other service URLs
 price:
@@ -338,6 +381,8 @@ resilience4j:
     instances:
       authServiceCircuitBreaker:
         baseConfig: default
+      aiServiceCircuitBreaker:
+        baseConfig: default
       predictionServiceCircuitBreaker:
         baseConfig: default
       backtestServiceCircuitBreaker:
@@ -347,6 +392,24 @@ resilience4j:
         slidingWindowSize: 20 # More samples before opening circuit
         minimumNumberOfCalls: 10 # Need more calls before evaluating
         failureRateThreshold: 70 # Higher threshold for news service (crawling can be flaky)
+
+  # TimeLimiter configuration - IMPORTANT for AI service which can take 10-15s for OpenAI calls
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 60s # Default timeout for all services
+        cancelRunningFuture: true
+    instances:
+      authServiceCircuitBreaker:
+        timeoutDuration: 10s # Auth service should be fast
+      aiServiceCircuitBreaker:
+        timeoutDuration: 120s # AI service needs longer timeout for OpenAI API calls
+      predictionServiceCircuitBreaker:
+        timeoutDuration: 30s
+      backtestServiceCircuitBreaker:
+        timeoutDuration: 30s
+      newsServiceCircuitBreaker:
+        timeoutDuration: 90s # Crawler can take time
 
 # Logging configuration for security audit
 logging:

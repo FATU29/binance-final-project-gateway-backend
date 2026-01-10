@@ -64,7 +64,7 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                 log.warn("Missing or invalid Authorization header from IP: {}", 
                     request.getRemoteAddress());
-                return onError(exchange, "Missing or invalid Authorization header", 
+                return onError(exchange, "Authentication required. Please log in to continue", 
                     HttpStatus.UNAUTHORIZED);
             }
             
@@ -88,8 +88,14 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
                 })
                 .onErrorResume(error -> {
                     log.error("Authentication failed: {}", error.getMessage());
-                    return onError(exchange, "Authentication failed: " + error.getMessage(), 
-                        HttpStatus.UNAUTHORIZED);
+                    
+                    // Return user-friendly error message instead of technical details
+                    String userMessage = "Your session has expired. Please log in again";
+                    if (error.getMessage() != null && error.getMessage().contains("Invalid")) {
+                        userMessage = "Your session has expired. Please log in again";
+                    }
+                    
+                    return onError(exchange, userMessage, HttpStatus.UNAUTHORIZED);
                 });
         };
     }
@@ -114,7 +120,8 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
                 status -> status.is4xxClientError() || status.is5xxServerError(),
                 response -> {
                     log.warn("Auth service returned error status: {}", response.statusCode());
-                    return Mono.error(new RuntimeException("Invalid or expired token"));
+                    // Return user-friendly message for token validation failure
+                    return Mono.error(new RuntimeException("Token validation failed"));
                 }
             )
             .bodyToMono(new ParameterizedTypeReference<ApiResponse<UserData>>() {})
