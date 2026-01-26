@@ -92,6 +92,22 @@ spring:
                   - 503
                   - 504
 
+        - id: auth-public-google
+          uri: ${auth.service.url:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/auth/google
+            - Method=POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authServiceCircuitBreaker
+                fallbackUri: forward:/fallback/auth
+                statusCodes:
+                  - 500
+                  - 502
+                  - 503
+                  - 504
+
         # ============================================
         # Authentication Service Routes (Protected)
         # ============================================
