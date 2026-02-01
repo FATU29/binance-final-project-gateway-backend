@@ -3,12 +3,15 @@ package com.hpt.trading_gateway.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsConfigurationSource;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
+import reactor.core.publisher.Mono;
 
 import java.util.Arrays;
 import java.util.List;
@@ -35,12 +38,17 @@ public class SecurityConfig {
             // Disable CSRF as we're using stateless JWT authentication
             .csrf(ServerHttpSecurity.CsrfSpec::disable)
             
+            // Enable CORS with CorsConfigurationSource
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            
             // Configure authorization
             .authorizeExchange(exchanges -> exchanges
                 // Allow health check endpoints
                 .pathMatchers("/actuator/health", "/actuator/info").permitAll()
                 // Allow fallback endpoints
                 .pathMatchers("/fallback/**").permitAll()
+                // Allow OPTIONS requests (CORS preflight)
+                .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 // All other requests are handled by our custom AuthenticationFilter
                 .anyExchange().permitAll()
             )
@@ -65,49 +73,30 @@ public class SecurityConfig {
     }
 
     /**
-     * CORS configuration to allow cross-origin requests
-     * Note: This should match the globalcors configuration in application.yml
-     * to avoid duplicate CORS headers
-     * 
-     * Supports both wildcard (*) and specific origins:
-     * - If CORS_ALLOWED_ORIGINS is "*", uses wildcard (credentials disabled)
-     * - Otherwise, uses specific origins (credentials enabled)
+     * CORS configuration to allow all origins, methods, and headers (*)
+     * Used by Spring Security WebFlux
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // Check if wildcard is requested
-        if ("*".equals(corsAllowedOrigins.trim())) {
-            // Use wildcard pattern - credentials must be disabled
-            configuration.setAllowedOriginPatterns(List.of("*"));
-            configuration.setAllowCredentials(false);
-        } else {
-            // Use specific origins from environment variable
-            // Split comma-separated origins if multiple are provided
-            List<String> allowedOrigins = Arrays.asList(corsAllowedOrigins.split(","));
-            configuration.setAllowedOrigins(allowedOrigins);
-            // Allow credentials when using specific origins
-            configuration.setAllowCredentials(true);
-        }
+        // Allow all origins with wildcard - use setAllowedOrigins for true wildcard
+        configuration.setAllowedOrigins(List.of("*"));
         
-        // Allow common HTTP methods
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        
-        // Allow common headers
-        configuration.setAllowedHeaders(Arrays.asList(
-            "Authorization",
-            "Content-Type",
-            "Accept",
-            "Origin",
-            "X-Requested-With"
+        // Allow all HTTP methods
+        configuration.setAllowedMethods(Arrays.asList(
+            "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"
         ));
         
-        // Expose headers that clients can access
+        // Allow all headers
+        configuration.setAllowedHeaders(List.of("*"));
+        
+        // Allow credentials MUST be false when using wildcard origin
+        configuration.setAllowCredentials(false);
+        
+        // Expose headers
         configuration.setExposedHeaders(Arrays.asList(
-            "Authorization",
-            "X-User-Id",
-            "X-User-Email"
+            "Authorization", "Content-Type", "X-User-Id", "X-User-Email", "X-Request-Id"
         ));
         
         // Cache preflight response for 1 hour

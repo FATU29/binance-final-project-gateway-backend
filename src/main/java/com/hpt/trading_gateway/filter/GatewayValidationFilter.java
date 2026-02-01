@@ -44,6 +44,7 @@ public class GatewayValidationFilter implements GlobalFilter, Ordered {
             .header("X-Gateway-Signature", gatewaySecret)
             .header("X-Request-Id", requestId)
             .header("X-Gateway-Timestamp", String.valueOf(System.currentTimeMillis()))
+            .header("X-Gateway-Validated", "true") // For downstream services to skip CORS (already handled by Gateway)
             .build();
 
         log.debug("Added gateway signature to request: {}", requestId);
