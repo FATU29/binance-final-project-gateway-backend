@@ -16,8 +16,14 @@ RUN mvn clean package -DskipTests -B
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-# Install wget for health checks
-RUN apk update && apk add --no-cache wget
+# Install wget for health checks (with retry & fallback mirror)
+RUN for i in 1 2 3; do \
+      apk update && apk add --no-cache wget && break; \
+      echo "Retry $i: apk failed, trying fallback mirror..."; \
+      echo 'https://dl-cdn.alpinelinux.org/alpine/v3.21/main' > /etc/apk/repositories && \
+      echo 'https://dl-cdn.alpinelinux.org/alpine/v3.21/community' >> /etc/apk/repositories; \
+      sleep 3; \
+    done || echo 'WARN: wget install skipped'
 
 # Create non-root user
 RUN addgroup -S spring && adduser -S spring -G spring
