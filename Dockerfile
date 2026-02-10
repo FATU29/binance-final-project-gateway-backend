@@ -4,34 +4,31 @@
 FROM maven:3.9-eclipse-temurin-21 AS builder
 WORKDIR /app
 
-# Copy pom.xml and download dependencies (with retry for network issues)
+# Configure Maven to use Central repository
+RUN mkdir -p /root/.m2 && \
+    echo '<?xml version="1.0" encoding="UTF-8"?><settings><mirrors><mirror><id>central</id><name>Maven Central</name><url>https://repo.maven.apache.org/maven2</url><mirrorOf>*</mirrorOf></mirror></mirrors></settings>' > /root/.m2/settings.xml
+
+# Copy pom.xml and download dependencies (with retry)
 COPY pom.xml .
-RUN for i in 1 2 3; do \
-      mvn dependency:go-offline -B && break; \
-      echo "Retry $i failed, waiting..."; \
-      sleep 5; \
+RUN for i in 1 2 3 4 5; do \
+      mvn dependency:go-offline -B && break || \
+      (echo "Maven dependency attempt $i failed, retrying in 15s..." && sleep 15); \
     done
 
-# Copy source code and build (with retry for network issues)
+# Copy source code and build
 COPY src ./src
-RUN for i in 1 2 3; do \
-      mvn clean package -DskipTests -B && break; \
-      echo "Retry $i failed, waiting..."; \
-      sleep 5; \
-    done || (echo "Maven build failed after 3 retries" && exit 1)
+RUN mvn clean package -DskipTests -B && \
+    ls -lh /app/target/*.jar | grep -v sources | grep -v javadoc
 
 # Stage 2: Runtime
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-# Install wget for health checks (with retry & fallback mirror)
-RUN for i in 1 2 3; do \
-      apk update && apk add --no-cache wget && break; \
-      echo "Retry $i: apk failed, trying fallback mirror..."; \
-      echo 'https://dl-cdn.alpinelinux.org/alpine/v3.21/main' > /etc/apk/repositories && \
-      echo 'https://dl-cdn.alpinelinux.org/alpine/v3.21/community' >> /etc/apk/repositories; \
-      sleep 3; \
-    done || echo 'WARN: wget install skipped'
+# Install wget for health checks (with DNS retry)
+RUN for i in 1 2 3 4 5; do \
+      apk update && apk add --no-cache wget && break || \
+      (echo "Attempt $i failed, retrying in 10s..." && sleep 10); \
+    done
 
 # Create non-root user
 RUN addgroup -S spring && adduser -S spring -G spring
